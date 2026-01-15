@@ -4,9 +4,11 @@ By Clement ALLEGRE--COMMINGES and PETIT Lucien
 
 ## Sommaire
 
+- [Introduction](#introduction)
 - [1. Mise en place](#1-mise-en-place)
   - [1.1 Configuration utilisateur et réseau](#11-configuration-utilisateur-et-réseau)
   - [1.2 Configuration shh et vnc](#12-configuration-shh-et-vnc)
+- [Conclusion](#conclusion)
 
 ## Introduction
 
