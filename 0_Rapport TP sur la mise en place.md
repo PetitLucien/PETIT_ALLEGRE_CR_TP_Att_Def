@@ -1,4 +1,4 @@
-# Rapport TP Attaque/defense
+# Rapport TP sur la mise en place
 
 By Clement ALLEGRE--COMMINGES and PETIT Lucien
 
@@ -10,7 +10,9 @@ By Clement ALLEGRE--COMMINGES and PETIT Lucien
 
 ## Introduction
 
-Dans cette prèmier partie de TP nous avons effectué la mise en place de notre environnement
+Dans cette prèmier partie de TP nous avons effectué la mise en place de notre environnement sur un Raspberry PI400. Ce Raspberry Pi nous servira à herberger les services que nous tenteront d'attaquer durant l'ensemble de nos TPs d'attaque défense.
+
+Nous avons donc configuré les paramètres utilisateurs et réseaux avant de configurer une connexion ssh via des clés privés.
 
 ## 1. Mise en place
 
@@ -189,4 +191,6 @@ Cependant, l'activation de ssh par defaut fonctionne avec une identification par
 
    On peut observer que les accès ssh par mot de passe sont bien désactivé et que les accès par clé sont fonctionnel.
 
-   ## Conclusion
+## Conclusion
+
+A la fin de mise en place, nous nous retrouvons avec un Raspberry opérationel.
