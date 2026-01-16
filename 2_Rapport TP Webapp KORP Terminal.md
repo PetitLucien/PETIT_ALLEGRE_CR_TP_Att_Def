@@ -5,29 +5,29 @@ By Clement ALLEGRE--COMMINGES and PETIT Lucien
 ## Sommaire
 
 - [Introduction](#introduction)
-- [1. Presentation de l'attaque](#1-presentation-de-lattaque)
+- [1. Présentation de l'attaque](#1-présentation-de-lattaque)
 - [2. Démarage des services](#2-démarage-des-services)
 - [3. Déroulement de l'attaque](#3-déroulement-de-lattaque)
   - [3.1 Obtention des informations sur la communication entre le client et le terminal](#31-obtention-des-informations-sur-la-communication-entre-le-client-et-le-terminal)
-  - [3.2 Recupération de la description des tables](#32-recupération-de-la-description-des-tables)
-  - [3.3 Récuperation des tables](#33-récuperation-des-tables)
-  - [3.4 Récuperation des mots de passe](#34-récuperation-des-mots-de-passe)
+  - [3.2 Récupération de la description des tables](#32-récupération-de-la-description-des-tables)
+  - [Récupération des tables](#33-récupération-des-tables)
+  - [Récupération des mots de passe](#34-récupération-des-mots-de-passe)
   - [3.5 Obtention du flag](#35-obtention-du-flag)
 - [Conclusion](#conclusion)
 
 ## Introduction
 
-Ce TP a pour but de mettre en oeuvre une attaque "Man in the midle" via un serveur proxy dans le but d'obtenir des identifiants de connexion. Il s'agit d'une attaque de type élevation de privilège. Nous commencerons par présenter l'attaque avant de présenter sont execution. Comme pour le précèdent TP (TimeKorp), nous avons souhaité pour dans une démarche d'approche en boîte noire dans l'objectif de mieux comprendre les mécancaniques de cette attaque ainsi que les problèmatiques liées.
+Ce TP a pour but de mettre en œuvre une attaque "Man in the Middle" via un serveur proxy dans le but d'obtenir des identifiants de connexion. Il s'agit d'une attaque de type élévation de privilège. Nous commencerons par présenter l'attaque avant de présenter son exécution. Comme pour le précédent TP (TimeKorp), nous avons souhaité entrer dans une démarche d'approche en boîte noire dans l'objectif de mieux comprendre les mécanismes de cette attaque ainsi que les problématiques liées.
 
-## 1. Presentation de l'attaque
+## 1. Présentation de l'attaque
 
-Notre cible est un Terminal Web sur lequel il faut s'indentifier depuis une interface client. Comme présenté ci-dessous:
+Notre cible est un Terminal Web sur lequel il faut s'identifier depuis une interface client. Comme présenté ci-dessous :
 ![Alt text](./image/schema_infra.png)
 
-Nous inseront un serveur proxy entre les deux pour nous permettre de capter les communications.
+Nous insérerons un serveur proxy entre les deux pour nous permettre de capter les communications.
 ![Alt text](./image/schema_infra_mitm.png)
 
-Une fois les communications obtenues, les données échangées serviront de base à une injection SQL à l'aide de l'outil sqlmap. Cette injection SQL nous permettra d'obtenir le contenur de la base de donné de ce site web et notament les noms des utilisateurs ainsi que les hashs des mot de passe associer.
+Une fois les communications obtenues, les données échangées serviront de base à une injection SQL à l'aide de l'outil sqlmap. Cette injection SQL nous permettra d'obtenir le contenu de la base de données de ce site web et notamment les noms des utilisateurs ainsi que les hashs des mots de passe associés.
 
 Nous retrouverons ensuite les mot de passe en clair à l'aide de hashcat, un outil d'attaque par dictionnaire.
 
@@ -95,9 +95,9 @@ Connection: close
 
 ```
 
-### 3.2 Recupération de la description des tables
+### 3.2 Récupération de la description des tables
 
-Nous avons ensuite utilisé la commande suivante pour recupérer le nom des tables de la base de données du serveur.
+Nous avons ensuite utilisé la commande suivante pour récupérer le nom des tables de la base de données du serveur.
 
 ```text
 user@motivation:~/Documents/sqlmap-dev $ python sqlmap.py -r /home/user/.mitmproxy/test.txt --ignore-code 401 -p username --tables
@@ -201,7 +201,7 @@ Database: korp_terminal
 
 Nous pouvons voir que la BDD `korp_terminal` contient une table nommée `users`.
 
-### 3.3 Récuperation des tables
+### 3.3 Récupération des tables
 
 Nous avons ensuite relancé sqlmap avec les nouveaux arguments suivant: `-D korp_terminal -T users --columns` pour obtenir le noms des differents champs de la BDD.
 
@@ -296,7 +296,7 @@ Table: users
 [*] ending @ 16:46:20 /2025-12-09/
 ```
 
-Cela nous permt de voir que la BDD contient notament un champ `username` et un champ `password`. Avec ces nouvelles informations, nous avons complété la commande sqlmap avec les  arguments suivant: `-D korp_terminal -T users -C username,password` pour obtenir les informations des champs `username` et `password`.
+Cela nous permet de voir que la BDD contient notamment un champ `username` et un champ `password`. Avec ces nouvelles informations, nous avons completé la commande sqlmap avec les  arguments suivants : `-D korp_terminal -T users -C username,password` pour obtenir les informations des champs `username` et `password`.
 
 ```text
 user@motivation:~/Documents/sqlmap-dev $ python sqlmap.py -r /home/user/.mitmproxy/test.txt -D korp_terminal -T users -C username,password --dump --igno
@@ -378,9 +378,9 @@ user:$2y$10$bfni4oATx18uvyU9Aff8yuoXkjubqZyksIrj9zkSOwAYTBmN4Zroi
 admin:$2y$10$p34l3lUN9bZKhnT1.e891Ow.nrQnT7V73vt.IuOvfZH1Jygxsxps6
 ```
 
-### 3.4 Récuperation des mots de passe
+### 3.4 Récupération des mots de passe
 
-Le logiciel `hashcat` demandans une certaine puissance de calcule et permetant une accéleration via carte graphique, nous avons transfert notre fichier `users` du Raspberry Pi  vers un autre ordinateur. Puis, nous avons decomprésser le dictionnaire que nous avons utilisé. Nous avons finalement pu lancer `hascat` comme repporté ci-dessous.
+Le logiciel `hashcat` demandant une certaine puissance de calcul et permettant une accélération via carte graphique, nous avons transféré notre fichier `users` du Raspberry Pi  vers un autre ordinateur. Puis, nous avons décompressé le dictionnaire que nous avons utilisé. Nous avons finalement pu lancer `hashcat` comme rapporté ci-dessous.
 
 ```text
 user@DESKTOP-5QE5MM5:~$ sudo gzip -d rockyou.txt.gz
@@ -470,7 +470,7 @@ Stopped: Tue Dec  9 18:08:00 2025
 
 ```
 
-Hascat nous a bien retourné les mots de passe associer aux hashs fourni:
+Hashcat nous a bien retourné les mots de passe associés aux hashs fournis :
 
 ```text
 $2y$10$1vSdN5jTa5S0ybMs.FXUwemfLxeBYGgjGsTDis.fuD6mx0lq9tLNe:cutest
@@ -488,13 +488,23 @@ On a pu en déduire les couples suivants:
 
 Pour finir, nous avons effectué une tentative de connexion avec user : `admin` et password : `myprecious` depuis le client.
 
-Nous avons ainsi pu recupéré le flag : `Poly{t3rm1n4l_p4ssH4c4t_cr4ck1ng}`
+Nous avons ainsi pu récupéré le flag : `Poly{t3rm1n4l_p4ssH4c4t_cr4ck1ng}`
 
 ![Alt text](./image/flag.png)
 
 ## Conclusion
 
-Pour conclure, nous avons pu au travers de ce TP mettre en place et d'exécuter une attaque "Man in the Middle". Nous avons démontré comment une simple interception du trafic réseau entre un client et un serveur peut mener à une compromission totale des données sensibles.
+Ce TP nous a permis de mettre en place et d'exécuter une attaque "Man in the Middle" complète sur une application web de terminal. Nous avons démontré comment une simple interception du trafic réseau entre un client et un serveur peut mener à une compromission totale des données sensibles.
+
+L'attaque s'est déroulée en plusieurs étapes successives :
+
+1. **Interception du trafic** : Grâce au proxy mitmproxy positionné entre le client et le serveur, nous avons pu capturer les requêtes HTTP et observer le protocole de communication.
+
+2. **Exploitation de vulnérabilités SQL** : En utilisant sqlmap sur les paramètres captés, nous avons identifié une vulnérabilité d'injection SQL, permettant d'extraire l'intégralité de la base de données contenant les informations sensibles (noms d'utilisateurs et hashs de mots de passe).
+
+3. **Récupération des credentials** : L'outil hashcat a permis de casser les hashs bcrypt en utilisant un dictionnaire de mots de passe courants, révélant ainsi les mots de passe en clair associés à chaque utilisateur.
+
+4. **Accès au système** : Avec les identifiants obtenus (notamment admin:myprecious), nous avons pu accéder au système et récupérer le flag.
 
 Cette attaque illustre plusieurs failles de sécurité critiques :
 

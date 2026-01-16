@@ -12,15 +12,15 @@ By Clement ALLEGRE--COMMINGES and PETIT Lucien
 
 ## Introduction
 
-Dans cette prèmier partie de TP nous avons effectué la mise en place de notre environnement sur un Raspberry PI400. Ce Raspberry Pi nous servira à herberger les services que nous tenteront d'attaquer durant l'ensemble de nos TPs d'attaque défense.
+Dans cette première partie de TP nous avons effectué la mise en place de notre environnement sur un Raspberry PI400. Ce Raspberry Pi nous servira à héberger les services que nous tenterons d'attaquer durant l'ensemble de nos TPs d'attaque défense.
 
-Nous avons donc configuré les paramètres utilisateurs et réseaux avant de configurer une connexion ssh via des clés privés.
+Nous avons donc configuré les paramètres utilisateurs et réseaux avant de configurer une connexion ssh via des clés privées.
 
 ## 1. Mise en place
 
 ### 1.1 Configuration utilisateur et réseau
 
-Nous avons créé notre user en fashant un nouvelle environnement (Raspberry Pi os bookworm) sur la carte SD du raspberry Pi.
+Nous avons créé notre user en flashant un nouvel environnement (Raspberry Pi os bookworm) sur la carte SD du raspberry Pi.
 
 - root :
   - username `root`
@@ -29,10 +29,10 @@ Nous avons créé notre user en fashant un nouvelle environnement (Raspberry Pi 
   - username: `user`
   - mot de passe : `password`
 
-Nous avons choisis l'IP statique `192.168.1.200/24` avec `192.168.1.1` et default gateway et `1.1.1.1` en DNS par defaut sur le reseaux wifi TP_RESEAUX (pwd: PolytechTours37!).
-Nous avons aussi profitez pour changer le nom de l'appareil pour `motivation`, notre nom d'équipe.
+Nous avons choisi l'IP statique `192.168.1.200/24` avec `192.168.1.1` comme default gateway et `1.1.1.1` en DNS par défaut sur le réseau wifi TP_RESEAUX (pwd: PolytechTours37!).
+Nous avons aussi profité pour changer le nom de l'appareil pour `motivation`, notre nom d'équipe.
 
-Pour vérifiez que la configuration a bien été appliqué, nous avons utiliser la commande suivant:
+Pour vérifier que la configuration a bien été appliquée, nous avons utilisé la commande suivante :
 
 ```bash
 user@motivation:~ $ id; who ; pwd $HOME
@@ -70,9 +70,9 @@ user@motivation:~ $ ip a
        valid_lft forever preferred_lft forever
 ```
 
-On retrouve bien `192.168.1.200/24` en `forever`ce qui veut dire notre Raspberry Pi à bien l'adresse ip static que nous avions choisi. Nous avons pu aussi identifier l'addresse MAC de l'interface wifi du Raspberry Pi comme :`d8:3a:dd:36:0d:99`
+On retrouve bien `192.168.1.200/24` en `forever` ce qui veut dire que notre Raspberry Pi a bien l'adresse IP statique que nous avions choisie. Nous avons pu aussi identifier l'adresse MAC de l'interface wifi du Raspberry Pi comme : `d8:3a:dd:36:0d:99`
 
-Nous avons ensuite vérifiez que nous pouvions pinguer notre `localhost`.
+Nous avons ensuite vérifié que nous pouvions pinguer notre `localhost`.
 
 ```bash
 user@motivation:~ $ ping motivation.local
@@ -85,7 +85,7 @@ PING motivation.local (127.0.0.1) 56(84) bytes of data.
 rtt min/avg/max/mdev = 0.053/0.070/0.087/0.017 ms
 ```
 
-Nous avons ensuite scannez le réseau avec `nmap` depuis un autre ordinateur pour vérifiez la présence de notre Raspberry pi sur le réseaux.
+Nous avons ensuite scanné le réseau avec `nmap` depuis un autre ordinateur pour vérifier la présence de notre Raspberry pi sur le réseau.
 
 ```bash
 user@MSI:/mnt/c/Users/lucie/Documents/Cours/ISIE/5A/Attaque%20defense$ sudo nmap -n -sP 192.168.1.0/24
@@ -112,9 +112,9 @@ On retrouve bien 192.168.1.200 de connecté sur le réseau.
 
 ### 1.2 Configuration shh et vnc
 
-Nous avons commençez par utiliser l'interface graphique pour activer les interfaces `ssh` et `vnc`. Cela nous permet d'utiliser la commande `ssh user@192.168.1.200` pour obtenir un terminal de contrôle et d'utiliser un client vnc (dans notre cas RealVnc) pour accèder à l'interface graphique.
+Nous avons commencé par utiliser l'interface graphique pour activer les interfaces `ssh` et `vnc`. Cela nous permet d'utiliser la commande `ssh user@192.168.1.200` pour obtenir un terminal de contrôle et d'utiliser un client vnc (dans notre cas RealVnc) pour accéder à l'interface graphique.
 
-Cependant, l'activation de ssh par defaut fonctionne avec une identification par mot de passe. Ce mode d'authentification n'est pas le plus sécurisé car il vulnérable aux attaques par bruteforce et attaques par dictionnaires. Une des mitigations pour ce problème et d'utiliser un clé d'autentification unique pour faire cela, nous avons réaliser les étapes suivantes:
+Cependant, l'activation de ssh par défaut fonctionne avec une identification par mot de passe. Ce mode d'authentification n'est pas le plus sécurisé car il est vulnérable aux attaques par bruteforce et attaques par dictionnaires. Une des mitigations pour ce problème est d'utiliser une clé d'authentification unique pour faire cela, nous avons réalisé les étapes suivantes :
 
 1. création d'une clé d'autentification
 
@@ -141,7 +141,7 @@ Cependant, l'activation de ssh par defaut fonctionne avec une identification par
     +----[SHA256]-----+
     ```
 
-2. On copie ensuite notre nouvelle clé vers le raspberry avec ssh.
+2. On copie ensuite notre nouvelle clé vers le Raspberry avec ssh.
 
     ```bash
     user@MSI:/mnt/c/Users/lucie/Documents/Cours/ISIE/5A/Attaque defense$ ssh-copy-id -i /home/user/.ssh/id_rsa_RPI400.pub user@192.168.1.200
@@ -156,12 +156,12 @@ Cependant, l'activation de ssh par defaut fonctionne avec une identification par
     and check to make sure that only the key(s) you wanted were added.        
     ```
 
-3. On a ensuite désactiver les accès par mots de passe  et active l'accès par clé en passant
+3. On a ensuite désactivé les accès par mots de passe et activé l'accès par clé en passant
 
    - `PasswordAuthentication` à `no`
    - `PubkeyAuthentication` à `yes`
 
-      dans `/etc/ssh/sshd_config`
+   dans `/etc/ssh/sshd_config`
 
    ```bash
    user@motivation:~ $ sudo nano /etc/ssh/sshd_config
@@ -195,4 +195,4 @@ Cependant, l'activation de ssh par defaut fonctionne avec une identification par
 
 ## Conclusion
 
-A la fin de mise en place, nous nous retrouvons avec un Raspberry opérationel.
+À la fin de la mise en place, nous nous retrouvons avec un Raspberry opérationnel.
