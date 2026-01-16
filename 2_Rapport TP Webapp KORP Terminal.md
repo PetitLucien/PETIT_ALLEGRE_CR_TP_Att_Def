@@ -23,8 +23,10 @@ Ce TP a pour but de mettre en oeuvre une attaque "Man in the midle" via un serve
 
 Notre cible est un Terminal Web sur lequel il faut s'indentifier depuis une interface client. Comme présenté ci-dessous:
 ![Alt text](./image/schema_infra.png)
+
 Nous inseront un serveur proxy entre les deux pour nous permettre de capter les communications.
 ![Alt text](./image/schema_infra_mitm.png)
+
 Une fois les communications obtenues, les données échangées serviront de base à une injection SQL à l'aide de l'outil sqlmap. Cette injection SQL nous permettra d'obtenir le contenur de la base de donné de ce site web et notament les noms des utilisateurs ainsi que les hashs des mot de passe associer.
 
 Nous retrouverons ensuite les mot de passe en clair à l'aide de hashcat, un outil d'attaque par dictionnaire.
@@ -60,6 +62,7 @@ Voici les commandes utilisées pour lancer chaque services:
 ### 3.1 Obtention des informations sur la communication entre le client et le terminal
 
 Ensuite faire une tentative de connexion avec un user name et mot de passe aléatoire pour communiquer avec le serveur terminal Korp.
+
 ```text
 
 user@motivation:~/.mitmproxy $ cat test.txt
